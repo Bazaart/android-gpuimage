@@ -32,12 +32,12 @@ open class GPUImageFilterGroup @JvmOverloads constructor(private val filters: Mu
     GPUImageFilter() {
 
     private lateinit var frameBufferIndexMap: Map<Int, Int>
-    private var mergedFilters: MutableList<GPUImageFilter>? = null
-    private var frameBuffers: IntArray? = null
-    private var frameBufferTextures: IntArray? = null
-    private val glCubeBuffer: FloatBuffer
-    private val glTextureBuffer: FloatBuffer
-    private val glTextureFlipBuffer: FloatBuffer
+    internal var mergedFilters: MutableList<GPUImageFilter>? = null
+    internal var frameBuffers: IntArray? = null
+    internal var frameBufferTextures: IntArray? = null
+    internal val glCubeBuffer: FloatBuffer
+    internal val glTextureBuffer: FloatBuffer
+    internal val glTextureFlipBuffer: FloatBuffer
     /**
      * Instantiates a new GPUImageFilterGroup with the given filters.
      *
