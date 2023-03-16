@@ -15,16 +15,18 @@ class GPUImageMultiLevelMattingFilter(img: Bitmap, mask: Bitmap) : GPUImageFilte
     init {
         val transformMatrix = FloatArray(16)
         var didSet = false
-        pyramidScaleList(img.width, img.height).forEach { lvlSize ->
-            val numOfIterations = if (lvlSize.width <= 32 && lvlSize.height <= 32) 10 else 2
+        pyramidScaleList(img.width, img.height).forEachIndexed { index, lvlSize ->
+            Log.d("TEST", "lvl: $index size: $lvlSize: ");
+            val numOfIterations = 2// if (lvlSize.width <= 32 && lvlSize.height <= 32) 10 else 2
             val scaledMask = Bitmap.createScaledBitmap(mask, lvlSize.width, lvlSize.height, true)
+//            val scaledImg = Bitmap.createScaledBitmap(img, lvlSize.width, lvlSize.height, true)
             //scale main image
-            addFilter(GPUImageTransformFilter().apply {
-                val scaleX = img.width / lvlSize.width.toFloat()
-                val scaleY = img.height / lvlSize.height.toFloat()
-                Matrix.setIdentityM(transformMatrix, 0)
-                Matrix.scaleM(transformMatrix, 0, scaleX, scaleY, 0f)
-            })
+//            addFilter(GPUImageTransformFilter().apply {
+//                val scaleX = img.width / lvlSize.width.toFloat()
+//                val scaleY = img.height / lvlSize.height.toFloat()
+//                Matrix.setIdentityM(transformMatrix, 0)
+//                Matrix.scaleM(transformMatrix, 0, scaleX, scaleY, 0f)
+//            })
             //add num of iterations of this level
             for (i in 0..numOfIterations) {
                 addFilter(GPUImageSingleLevelMattingFilter().apply {
@@ -107,8 +109,8 @@ class GPUImageMultiLevelMattingFilter(img: Bitmap, mask: Bitmap) : GPUImageFilte
         val levels = floor(log2(max(w0, h0))).toInt()
         val pyramid = mutableListOf<Size>()
         for (i in 0..levels) {
-            val scaledW = w.toDouble().pow(i / levels).roundToInt()
-            val scaledH = h.toDouble().pow(i / levels).roundToInt()
+            val scaledW = w.toDouble().pow(i / levels.toDouble()).roundToInt()
+            val scaledH = h.toDouble().pow(i / levels.toDouble()).roundToInt()
             pyramid.add(Size(scaledW, scaledH))
         }
         return pyramid.toList()
