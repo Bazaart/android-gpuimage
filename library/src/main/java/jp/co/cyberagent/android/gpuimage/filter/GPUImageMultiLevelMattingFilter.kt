@@ -1,12 +1,12 @@
 package jp.co.cyberagent.android.gpuimage.filter
 
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.opengl.GLES20
 import android.opengl.Matrix
 import android.util.Log
 import android.util.Size
-import jp.co.cyberagent.android.gpuimage.util.OpenGlUtils
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import kotlin.math.*
 
@@ -14,37 +14,54 @@ class GPUImageMultiLevelMattingFilter(img: Bitmap, mask: Bitmap) : GPUImageFilte
 
     init {
         val transformMatrix = FloatArray(16)
-        var didSet = false
-        pyramidScaleList(img.width, img.height).forEachIndexed { index, lvlSize ->
-            Log.d("TEST", "lvl: $index size: $lvlSize: ");
-            val numOfIterations = 2// if (lvlSize.width <= 32 && lvlSize.height <= 32) 10 else 2
-            val scaledMask = Bitmap.createScaledBitmap(mask, lvlSize.width, lvlSize.height, true)
+        var didSetFg = false
+        pyramidScaleList(img.width, img.height).filter { it.width > 32 && it.height > 32 }
+            .forEachIndexed { index, lvlSize ->
+                Log.d("TEST", "lvl: $index size: $lvlSize: ");
+                val numOfIterations = if (lvlSize.width <= 32 && lvlSize.height <= 32) 10 else 2
+                val scaledMask =
+                    Bitmap.createScaledBitmap(mask, lvlSize.width, lvlSize.height, true)
 //            val scaledImg = Bitmap.createScaledBitmap(img, lvlSize.width, lvlSize.height, true)
-            //scale main image
-//            addFilter(GPUImageTransformFilter().apply {
-//                val scaleX = img.width / lvlSize.width.toFloat()
-//                val scaleY = img.height / lvlSize.height.toFloat()
-//                Matrix.setIdentityM(transformMatrix, 0)
-//                Matrix.scaleM(transformMatrix, 0, scaleX, scaleY, 0f)
-//            })
-            //add num of iterations of this level
-            for (i in 0..numOfIterations) {
-                addFilter(GPUImageSingleLevelMattingFilter().apply {
-                    setBitmap(scaledMask, 0)
-                    if (!didSet) {
-                        didSet = true
-                        val fg = Bitmap.createBitmap(mask.width, mask.height, mask.config).apply {
-                            eraseColor(Color.BLACK)
-                        }
-                        val bg = Bitmap.createBitmap(mask.width, mask.height, mask.config).apply {
-                            eraseColor(Color.BLACK)
-                        }
-                        setBitmap(fg, 2)
-                        setBitmap(bg, 3)
-                    }
+                //scale main image
+                addFilter(GPUImageTransformFilter().apply {
+                    val scaleX = img.width / lvlSize.width.toFloat()
+                    val scaleY = img.height / lvlSize.height.toFloat()
+                    Matrix.setIdentityM(transformMatrix, 0)
+                    Matrix.scaleM(transformMatrix, 0, scaleX, scaleY, 0f)
                 })
+                //add num of iterations of this level
+
+                //input: 32x32, mask, new new
+                //render into fbo fg
+                //render into fbo bg
+                var setMask = false
+                for (i in 0..numOfIterations * 2) {
+                    addFilter(GPUImageSingleIterationMattingFilter(i % 2 == 0, lvlSize).apply {
+                        if (!setMask) {
+                            setMask = true
+                            setBitmap(scaledMask, 0)
+                        }
+
+                        if (!didSetFg) {
+                            didSetFg = true
+                            val fg =
+                                Bitmap.createBitmap(mask.width, mask.height, mask.config).apply {
+//                            eraseColor(Color.TRANSPARENT)
+                                }
+                            val bg =
+                                Bitmap.createBitmap(mask.width, mask.height, mask.config).apply {
+//                            eraseColor(Color.TRANSPARENT)
+                                }
+                            setBitmap(fg, 1)
+                            setBitmap(bg, 2)
+                        }
+                    })
+                }
             }
-        }
+//        getFilters().first { it as? GPUImageSingleLevelMattingFilter != null}.let {
+//            val f = it as GPUImageSingleLevelMattingFilter
+//            onOutputSizeChanged(f.size.width, f.size.height)
+//        }
         Log.d("TEST", "starting multi level matting with ${getFilters().size} filters");
     }
 
@@ -65,26 +82,53 @@ class GPUImageMultiLevelMattingFilter(img: Bitmap, mask: Bitmap) : GPUImageFilte
                     GLES20.glClearColor(0f, 0f, 0f, 0f)
                 }
             }
-            when {
-                filter is GPUImageSingleLevelMattingFilter -> {
-                    //todo pass result of previuos iteration as input to next step
-                    //todo figure out how to get 2 result of fg and bg output
-                    val prevFilter = mergedFilters.getOrNull(i - 1)
-                    if (prevFilter is GPUImageSingleLevelMattingFilter) {
-                        val maskTexture = prevFilter.getTextureId(1) ?: OpenGlUtils.NO_TEXTURE
-                        val fgTexture = prevFilter.getTextureId(2) ?: OpenGlUtils.NO_TEXTURE
-                        val bgTexture = prevFilter.getTextureId(3) ?: OpenGlUtils.NO_TEXTURE
-                        filter.setSourceTexture(1, maskTexture)
-                        filter.setSourceTexture(2, fgTexture)
-                        filter.setSourceTexture(3, bgTexture)
+            if (filter is GPUImageSingleIterationMattingFilter) {
+                //todo pass result of previuos iteration as input to next step
+                //todo figure out how to get 2 result of fg and bg output
+                val prevFilter = mergedFilters.getOrNull(i - 2)
+                if (i % 2 == 0 && prevFilter is GPUImageSingleIterationMattingFilter) {
+//                    val maskTexture = prevFilter.getTextureId(0) ?: OpenGlUtils.NO_TEXTURE
+//                    val fgTexture = prevFilter.getTextureId(1) ?: OpenGlUtils.NO_TEXTURE
+//                    val bgTexture = prevFilter.getTextureId(2) ?: OpenGlUtils.NO_TEXTURE
+                    val prevMask = prevFilter.bitmaps[0]?.get() ?: continue
+                    if (filter.size == prevFilter.size) {
+                        filter.setBitmap(prevMask, 0)
                     }
-
-                    filter.onDraw(previousTexture, glCubeBuffer, glTextureBuffer)
+                    frameBuffers?.let { fb ->
+                        //set input as the output of previous step
+                        val fg = readTexture(filter.outputWidth, filter.outputHeight, fb[i - 2])
+                            ?: return@let
+                        val bg = readTexture(filter.outputWidth, filter.outputHeight, fb[i - 1])
+                            ?: return@let
+                        filter.setBitmap(
+                            Bitmap.createScaledBitmap(
+                                fg,
+                                filter.size.width,
+                                filter.size.height,
+                                true
+                            ), 1
+                        )
+                        filter.setBitmap(
+                            Bitmap.createScaledBitmap(
+                                bg,
+                                filter.size.width,
+                                filter.size.height,
+                                true
+                            ), 2
+                        )
+                        //bind again fb
+                        if (isNotLast) {
+                            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fb[i])
+                            GLES20.glClearColor(0f, 0f, 0f, 0f)
+                        }
+                    }
                 }
-                i == 0 -> {
+            }
+            when (i) {
+                0 -> {
                     filter.onDraw(previousTexture, cubeBuffer, textureBuffer)
                 }
-                i == size - 1 -> {
+                size - 1 -> {
                     filter.onDraw(
                         previousTexture,
                         glCubeBuffer,
@@ -114,6 +158,16 @@ class GPUImageMultiLevelMattingFilter(img: Bitmap, mask: Bitmap) : GPUImageFilte
             pyramid.add(Size(scaledW, scaledH))
         }
         return pyramid.toList()
+    }
+
+    fun readTexture(width: Int, height: Int, fbId: Int): Bitmap? {
+        val buffer: ByteBuffer = ByteBuffer.allocateDirect(width * height * 4)
+        buffer.order(ByteOrder.nativeOrder())
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbId)
+        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buffer)
+        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
+            this.copyPixelsFromBuffer(buffer)
+        }
     }
 
 }

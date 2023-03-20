@@ -13,6 +13,9 @@ import java.nio.ByteOrder
 
 const val NUM_OF_TEXTURES = 5
 
+/**
+ * GpuImage supporting multiple input images, up to [NUM_OF_TEXTURES]
+ */
 open class GPUImageMultipleInputFilter(
     vertexShader: String = VERTEX_ATTRS + VERTEX_SHADER,
     fragmentShader: String
@@ -53,7 +56,7 @@ open class GPUImageMultipleInputFilter(
     private var filterInputTextureUniformArray: IntArray = IntArray(NUM_OF_TEXTURES)
     private var filterSourceTextureArray: IntArray = IntArray(NUM_OF_TEXTURES) { NO_TEXTURE }
     private var texture2CoordinatesBuffer: Array<ByteBuffer?> = Array(NUM_OF_TEXTURES) { null }
-    private var bitmaps: Array<WeakReference<Bitmap>?> = Array(NUM_OF_TEXTURES) { null }
+    var bitmaps: Array<WeakReference<Bitmap>?> = Array(NUM_OF_TEXTURES) { null }
 
     init {
         setRotation(Rotation.NORMAL, flipHorizontal = false, flipVertical = false)
@@ -148,8 +151,8 @@ open class GPUImageMultipleInputFilter(
     }
 
     override fun onDrawArraysPre() {
-        filterTextureCoordinateAttributeArray.forEachIndexed { index, i ->
-            GLES20.glEnableVertexAttribArray(i)
+        filterTextureCoordinateAttributeArray.forEachIndexed { index, attr ->
+            GLES20.glEnableVertexAttribArray(attr)
             GLES20.glActiveTexture(getOpenGlTextureId(index))
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, filterSourceTextureArray[index])
             GLES20.glUniform1i(filterInputTextureUniformArray[index], 3 + index)
@@ -162,7 +165,6 @@ open class GPUImageMultipleInputFilter(
                 0,
                 texture2CoordinatesBuffer[index]
             )
-
         }
 
     }
@@ -179,6 +181,6 @@ open class GPUImageMultipleInputFilter(
     }
 
     fun getTextureId(index: Int): Int? {
-        return filterInputTextureUniformArray.getOrNull(index)
+        return filterSourceTextureArray.getOrNull(index)
     }
 }

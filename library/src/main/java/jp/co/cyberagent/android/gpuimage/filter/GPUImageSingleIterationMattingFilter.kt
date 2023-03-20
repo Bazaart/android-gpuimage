@@ -1,11 +1,23 @@
 package jp.co.cyberagent.android.gpuimage.filter
 
+import android.util.Size
+
+
 /**
- * cross sampling vertex filter, preaper the cordinates to cross sampling by adding :
- * left, right, top and bottom coordinates of the texture
+ * implementation a single iteration of multi level matting algorithm
+ * @see https://arxiv.org/pdf/2006.14970.pdf]
+ * input:
+ * image - base image set as the image in GpuImage
+ * mask  - index 0 as first input image (beside base)
+ * foreground - ongoing result of foreground
+ * background - ongoing result of background
+ * @param renderFg true for output to be foreground result else background result
  */
-class GPUImageSingleLevelMattingFilter() :
-    GPUImageMultipleInputFilter(CROSS_TEXTURE_SAMPLING_VERTEX_SHADER, MATTING_FRAGMENT_SHADER) {
+class GPUImageSingleIterationMattingFilter(renderFg: Boolean, val size: Size) :
+    GPUImageMultipleInputFilter(
+        CROSS_TEXTURE_SAMPLING_VERTEX_SHADER,
+        MATTING_FRAGMENT_SHADER.format(if (renderFg) "fgResult" else "bgResult")
+    ) {
 
 
     companion object {
@@ -40,7 +52,6 @@ class GPUImageSingleLevelMattingFilter() :
 
         }
         """
-        private const val regularization = 0.00001
 
         const val MATTING_FRAGMENT_SHADER = """
             precision mediump float;
@@ -78,7 +89,7 @@ class GPUImageSingleLevelMattingFilter() :
                     lowp vec2 cord = textureCoordinate + crossCoordinates[i];
                     lowp vec4 alpha = texture2D(inputImageTexture2, cord);
                     
-                    lowp float da = $regularization + abs(a0 - alpha.r);
+                    lowp float da = 0.00001 + abs(a0 - alpha.a);
                     a00 = a00 + da;
                     a11 = a11 + da;
                     
@@ -99,11 +110,10 @@ class GPUImageSingleLevelMattingFilter() :
                 lowp vec3 fc = b00 * fg + b01 * bg;
                 lowp vec3 bc = b01 * fg + b11 * bg;
                 
-                lowp vec4 fgResult = vec4(max(0.0, min(1.0, fc.r)), max(0.0, min(1.0, fc.g)),max(0.0, min(1.0, fc.b)), 1.0);
-                lowp vec4 bgResult = vec4(max(0.0, min(1.0, bc.r)), max(0.0, min(1.0, bc.g)),max(0.0, min(1.0, bc.b)), 1.0);
+                lowp vec4 fgResult = vec4(max(0.0, min(1.0, fc.r)), max(0.0, min(1.0, fc.g)),max(0.0, min(1.0, fc.b)), textureColor2.a);
+                lowp vec4 bgResult = vec4(max(0.0, min(1.0, bc.r)), max(0.0, min(1.0, bc.g)),max(0.0, min(1.0, bc.b)), 1.0-textureColor2.a);
                 
-                gl_FragColor = fgResult;
-                //gl_FragData[0] = fgResult;
+                gl_FragColor = %s;
             }
         """
     }
