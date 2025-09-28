@@ -194,7 +194,7 @@ open class GPUImageFilterGroup @JvmOverloads constructor(private val filters: Mu
                 }
             }
             when {
-                filter is GPUImageNormalBlendSavedStateFilter -> {
+                filter is GPUImageSavedStateTwoInputFilter -> {
                     //get index of saved state filter
                     var idx =
                         mergedFilters.indexOfFirst { it is GPUImageSaveCurrentStateFilter && it.tag == filter.tag }
