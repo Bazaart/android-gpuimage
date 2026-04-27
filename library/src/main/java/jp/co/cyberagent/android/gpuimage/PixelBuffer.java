@@ -33,6 +33,7 @@ import static javax.microedition.khronos.egl.EGL10.EGL_WIDTH;
 
 public class PixelBuffer {
     private final static String TAG = "PixelBuffer";
+    private static final boolean LIST_CONFIGS = false;
     private final static boolean LIST_CONFIGS = false;
 
     private GLSurfaceView.Renderer renderer; // borrow this interface
@@ -132,7 +133,7 @@ public class PixelBuffer {
     }
 
     private EGLConfig chooseConfig() {
-        int[] attribList = new int[]{
+        int[] preferredAttribList = new int[]{
                 EGL_DEPTH_SIZE, 0,
                 EGL_STENCIL_SIZE, 0,
                 EGL_RED_SIZE, 8,
@@ -143,11 +144,63 @@ public class PixelBuffer {
                 EGL_NONE
         };
 
+        EGLConfig preferredConfig = chooseConfig(preferredAttribList);
+        if (preferredConfig != null) {
+            return preferredConfig;
+        }
+
+        int[] fallbackAttribList = new int[]{
+                EGL_RED_SIZE, 4,
+                EGL_GREEN_SIZE, 4,
+                EGL_BLUE_SIZE, 4,
+                EGL_ALPHA_SIZE, 4,
+                EGL10.EGL_RENDERABLE_TYPE, 4,
+                EGL_NONE
+        };
+
+        Log.w(TAG, "No exact EGL config match for PixelBuffer. Falling back to the best available ES2 config.");
+        EGLConfig fallbackConfig = chooseBestConfig(fallbackAttribList);
+        if (LIST_CONFIGS) {
+            listConfig();
+        }
+        if (fallbackConfig != null) {
+            return fallbackConfig;
+        }
+
+        throw new IllegalArgumentException("No matching EGL config for PixelBuffer");
+    }
+
+    private EGLConfig chooseConfig(final int[] attribList) {
+        EGLConfig[] configs = getConfigs(attribList);
+        return configs.length > 0 ? configs[0] : null;
+    }
+
+    private EGLConfig chooseBestConfig(final int[] attribList) {
+        EGLConfig[] configs = getConfigs(attribList);
+        if (configs.length == 0) {
+            return null;
+        }
+
+        EGLConfig bestConfig = configs[0];
+        for (int i = 1; i < configs.length; i++) {
+            if (isBetterConfig(configs[i], bestConfig)) {
+                bestConfig = configs[i];
+            }
+        }
+        return bestConfig;
+    }
+
+    private EGLConfig[] getConfigs(final int[] attribList) {
         // No error checking performed, minimum required code to elucidate logic
         // Expand on this logic to be more selective in choosing a configuration
         int[] numConfig = new int[1];
         egl10.eglChooseConfig(eglDisplay, attribList, null, 0, numConfig);
         int configSize = numConfig[0];
+        if (configSize <= 0) {
+            eglConfigs = new EGLConfig[0];
+            return eglConfigs;
+        }
+
         eglConfigs = new EGLConfig[configSize];
         egl10.eglChooseConfig(eglDisplay, attribList, eglConfigs, configSize, numConfig);
 
@@ -155,7 +208,35 @@ public class PixelBuffer {
             listConfig();
         }
 
-        return eglConfigs[0]; // Best match is probably the first configuration
+        return eglConfigs;
+    }
+
+    private boolean isBetterConfig(final EGLConfig candidate, final EGLConfig currentBest) {
+        int candidateAlpha = Math.min(getConfigAttrib(candidate, EGL_ALPHA_SIZE), 8);
+        int bestAlpha = Math.min(getConfigAttrib(currentBest, EGL_ALPHA_SIZE), 8);
+        if (candidateAlpha != bestAlpha) {
+            return candidateAlpha > bestAlpha;
+        }
+
+        int candidateColor = Math.min(getConfigAttrib(candidate, EGL_RED_SIZE), 8)
+                + Math.min(getConfigAttrib(candidate, EGL_GREEN_SIZE), 8)
+                + Math.min(getConfigAttrib(candidate, EGL_BLUE_SIZE), 8);
+        int bestColor = Math.min(getConfigAttrib(currentBest, EGL_RED_SIZE), 8)
+                + Math.min(getConfigAttrib(currentBest, EGL_GREEN_SIZE), 8)
+                + Math.min(getConfigAttrib(currentBest, EGL_BLUE_SIZE), 8);
+        if (candidateColor != bestColor) {
+            return candidateColor > bestColor;
+        }
+
+        int candidateDepth = getConfigAttrib(candidate, EGL_DEPTH_SIZE);
+        int bestDepth = getConfigAttrib(currentBest, EGL_DEPTH_SIZE);
+        if (candidateDepth != bestDepth) {
+            return candidateDepth < bestDepth;
+        }
+
+        int candidateStencil = getConfigAttrib(candidate, EGL_STENCIL_SIZE);
+        int bestStencil = getConfigAttrib(currentBest, EGL_STENCIL_SIZE);
+        return candidateStencil < bestStencil;
     }
 
     private void listConfig() {
