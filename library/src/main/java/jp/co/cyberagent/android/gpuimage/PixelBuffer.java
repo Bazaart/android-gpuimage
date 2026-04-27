@@ -33,6 +33,7 @@ import static javax.microedition.khronos.egl.EGL10.EGL_WIDTH;
 
 public class PixelBuffer {
     private final static String TAG = "PixelBuffer";
+    private static final boolean LIST_CONFIGS = false;
     private final static boolean LIST_CONFIGS = false;
 
     private GLSurfaceView.Renderer renderer; // borrow this interface
@@ -159,7 +160,9 @@ public class PixelBuffer {
 
         Log.w(TAG, "No exact EGL config match for PixelBuffer. Falling back to the best available ES2 config.");
         EGLConfig fallbackConfig = chooseBestConfig(fallbackAttribList);
-        listConfig();
+        if (LIST_CONFIGS) {
+            listConfig();
+        }
         if (fallbackConfig != null) {
             return fallbackConfig;
         }
