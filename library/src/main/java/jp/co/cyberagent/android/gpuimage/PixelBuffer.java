@@ -33,8 +33,8 @@ import static javax.microedition.khronos.egl.EGL10.EGL_WIDTH;
 
 public class PixelBuffer {
     private final static String TAG = "PixelBuffer";
-    private static final boolean LIST_CONFIGS = false;
     private final static boolean LIST_CONFIGS = false;
+    private final static int EGL_OPENGL_ES2_BIT = 4;
 
     private GLSurfaceView.Renderer renderer; // borrow this interface
     private int width, height;
@@ -140,7 +140,7 @@ public class PixelBuffer {
                 EGL_GREEN_SIZE, 8,
                 EGL_BLUE_SIZE, 8,
                 EGL_ALPHA_SIZE, 8,
-                EGL10.EGL_RENDERABLE_TYPE, 4,
+                EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
                 EGL_NONE
         };
 
@@ -154,7 +154,7 @@ public class PixelBuffer {
                 EGL_GREEN_SIZE, 4,
                 EGL_BLUE_SIZE, 4,
                 EGL_ALPHA_SIZE, 4,
-                EGL10.EGL_RENDERABLE_TYPE, 4,
+                EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
                 EGL_NONE
         };
 
