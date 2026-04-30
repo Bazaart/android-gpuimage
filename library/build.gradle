@@ -14,7 +14,6 @@ android {
     defaultConfig {
         compileSdk = 34
         minSdkVersion 26
-        targetSdkVersion 35
         ndkVersion = "28.1.13356709"
 
         ndk.abiFilters 'armeabi-v7a','arm64-v8a','x86','x86_64'
@@ -28,10 +27,13 @@ android {
 
     buildTypes {
         release {
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
     namespace 'jp.co.cyberagent.android.gpuimage'
+    lint {
+        targetSdk 35
+    }
 }
 
 ext {
