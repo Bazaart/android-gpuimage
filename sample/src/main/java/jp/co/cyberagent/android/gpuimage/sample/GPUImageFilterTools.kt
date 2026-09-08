@@ -147,7 +147,7 @@ object GPUImageFilterTools {
             FilterType.EMBOSS -> GPUImageEmbossFilter()
             FilterType.POSTERIZE -> GPUImagePosterizeFilter()
             FilterType.FILTER_GROUP -> GPUImageFilterGroup(
-                listOf(
+                mutableListOf(
                     GPUImageContrastFilter(),
                     GPUImageDirectionalSobelEdgeDetectionFilter(),
                     GPUImageGrayscaleFilter()
